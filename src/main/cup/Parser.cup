@@ -1,0 +1,345 @@
+package org.example.parser;
+
+import java_cup.runtime.*;
+import java.util.*;
+import org.example.ast.*;
+import org.example.tac.*;
+
+parser code {:
+    // Para registrar errores sintácticos
+    public void syntax_error(Symbol s) {
+        System.err.println("Error sintáctico en línea " + (s.left + 1) + ", columna " + (s.right + 1) + ": " + s.value);
+    }
+
+    // Para errores fatales
+    public void unrecovered_syntax_error(Symbol s) throws java.lang.Exception {
+        System.err.println("Error irrecuperable en línea " + (s.left + 1) + ", columna " + (s.right + 1));
+    }
+:}
+
+/* Terminales (tokens devueltos por el analizador léxico) */
+terminal DEFINE, PRINT, IF, ELSE, ELSEIF, WHILE, LOOP, FUNCTION, RETURN, END, DO, THEN;
+terminal AND, OR, NOT;
+terminal PLUS, MINUS, TIMES, DIVIDE;
+terminal LT, GT, LE, GE, EQ, NE;
+terminal ASSIGN;
+terminal LPAREN, RPAREN, SEMICOLON, COMMA;
+terminal String ID;
+terminal Integer INT;
+terminal Float FLOAT;
+terminal String STRING;
+terminal Boolean TRUE, FALSE;
+
+/* Terminales virtuales (solo para precedencia) */
+terminal UMINUS;
+
+/* No terminales */
+non terminal Program programa;
+non terminal List<Statement> declaraciones;
+non terminal Statement declaracion;
+non terminal VarDeclaration declaracion_variable;
+non terminal FunctionDeclaration declaracion_funcion;
+non terminal PrintStatement declaracion_impresion;
+non terminal Statement estructura_control;
+non terminal FunctionCall llamada_funcion;
+non terminal List<String> parametros, lista_parametros;
+non terminal List<Statement> cuerpo_funcion;
+non terminal List<Expression> lista_impresion;
+non terminal IfStatement estructura_if;
+non terminal WhileStatement estructura_while;
+non terminal LoopStatement estructura_loop;
+non terminal List<ElseIfClause> clauses_elseif;
+non terminal List<Expression> argumentos, lista_argumentos;
+non terminal Expression expresion, expresion_asignacion, expresion_logica, expresion_relacional;
+non terminal Expression expresion_aditiva, expresion_multiplicativa, factor;
+
+/* Ajuste de precedencia de operadores */
+precedence left OR;
+precedence left AND;
+precedence nonassoc EQ, NE, LT, GT, LE, GE;  /* Operadores no asociativos */
+precedence left PLUS, MINUS;
+precedence left TIMES, DIVIDE;
+precedence right NOT;
+precedence right UMINUS;
+precedence left SEMICOLON;  /* Dar prioridad a la resolución con punto y coma */
+
+start with programa;
+
+/* Reglas gramaticales */
+
+programa ::= declaraciones:decls
+            {:
+                RESULT = new Program(decls);
+            :}
+            ;
+
+declaraciones ::= declaracion:decl
+                {:
+                    List<Statement> decls = new ArrayList<>();
+                    decls.add(decl);
+                    RESULT = decls;
+                :}
+                | declaraciones:decls declaracion:decl
+                {:
+                    decls.add(decl);
+                    RESULT = decls;
+                :}
+                ;
+
+/* Modificación en la regla de declaración */
+declaracion ::= declaracion_variable:var {: RESULT = var; :}
+              | declaracion_funcion:func {: RESULT = func; :}
+              | declaracion_impresion:print {: RESULT = print; :}
+              | estructura_control:ctrl {: RESULT = ctrl; :}
+              | llamada_funcion:call SEMICOLON {: RESULT = new ExpressionStatement(call); :}
+              | expresion_asignacion:expr SEMICOLON {: RESULT = new ExpressionStatement(expr); :}
+              ;
+
+/* Declaraciones de variables y funciones */
+declaracion_variable ::= DEFINE ID:id ASSIGN expresion:expr SEMICOLON
+                      {:
+                          RESULT = new VarDeclaration(id, expr);
+                      :}
+                      ;
+
+declaracion_funcion ::= FUNCTION ID:id LPAREN parametros:params RPAREN cuerpo_funcion:body END
+                      {:
+                          RESULT = new FunctionDeclaration(id, params, body);
+                      :}
+                      ;
+
+parametros ::= /* vacío */
+            {:
+                RESULT = new ArrayList<>();
+            :}
+            | lista_parametros:params
+            {:
+                RESULT = params;
+            :}
+            ;
+
+lista_parametros ::= ID:id
+                  {:
+                      List<String> params = new ArrayList<>();
+                      params.add(id);
+                      RESULT = params;
+                  :}
+                  | lista_parametros:params COMMA ID:id
+                  {:
+                      params.add(id);
+                      RESULT = params;
+                  :}
+                  ;
+
+cuerpo_funcion ::= declaracion:decl
+                {:
+                    List<Statement> body = new ArrayList<>();
+                    body.add(decl);
+                    RESULT = body;
+                :}
+                | cuerpo_funcion:body declaracion:decl
+                {:
+                    body.add(decl);
+                    RESULT = body;
+                :}
+                | cuerpo_funcion:body RETURN expresion:expr SEMICOLON
+                {:
+                    body.add(new ReturnStatement(expr));
+                    RESULT = body;
+                :}
+                | RETURN expresion:expr SEMICOLON
+                {:
+                    List<Statement> body = new ArrayList<>();
+                    body.add(new ReturnStatement(expr));
+                    RESULT = body;
+                :}
+                ;
+
+declaracion_impresion ::= PRINT lista_impresion:list SEMICOLON
+                       {:
+                           RESULT = new PrintStatement(list);
+                       :}
+                       ;
+
+lista_impresion ::= expresion:expr
+                 {:
+                     List<Expression> exprs = new ArrayList<>();
+                     exprs.add(expr);
+                     RESULT = exprs;
+                 :}
+                 | lista_impresion:list COMMA expresion:expr
+                 {:
+                     list.add(expr);
+                     RESULT = list;
+                 :}
+                 ;
+
+estructura_control ::= estructura_if:ifStmt {: RESULT = ifStmt; :}
+                    | estructura_while:whileStmt {: RESULT = whileStmt; :}
+                    | estructura_loop:loopStmt {: RESULT = loopStmt; :}
+                    ;
+
+estructura_if ::= IF expresion:cond THEN declaraciones:thenBody END
+                {:
+                    RESULT = new IfStatement(cond, thenBody, new ArrayList<>(), new ArrayList<>());
+                :}
+                | IF expresion:cond THEN declaraciones:thenBody ELSE declaraciones:elseBody END
+                {:
+                    RESULT = new IfStatement(cond, thenBody, new ArrayList<>(), elseBody);
+                :}
+                | IF expresion:cond THEN declaraciones:thenBody clauses_elseif:elseifClauses END
+                {:
+                    RESULT = new IfStatement(cond, thenBody, elseifClauses, new ArrayList<>());
+                :}
+                | IF expresion:cond THEN declaraciones:thenBody clauses_elseif:elseifClauses ELSE declaraciones:elseBody END
+                {:
+                    RESULT = new IfStatement(cond, thenBody, elseifClauses, elseBody);
+                :}
+                ;
+
+clauses_elseif ::= ELSEIF expresion:cond THEN declaraciones:body
+                {:
+                    List<ElseIfClause> clauses = new ArrayList<>();
+                    clauses.add(new ElseIfClause(cond, body));
+                    RESULT = clauses;
+                :}
+                | clauses_elseif:clauses ELSEIF expresion:cond THEN declaraciones:body
+                {:
+                    clauses.add(new ElseIfClause(cond, body));
+                    RESULT = clauses;
+                :}
+                ;
+
+estructura_while ::= WHILE expresion:cond DO declaraciones:body END
+                   {:
+                       RESULT = new WhileStatement(cond, body);
+                   :}
+                   ;
+
+estructura_loop ::= LOOP LPAREN declaracion_variable:init expresion:cond SEMICOLON expresion:incr RPAREN DO declaraciones:body END
+                  {:
+                      RESULT = new LoopStatement(init, cond, incr, body);
+                  :}
+                  ;
+
+llamada_funcion ::= ID:id LPAREN argumentos:args RPAREN
+                  {:
+                      RESULT = new FunctionCall(id, args);
+                  :}
+                  ;
+
+argumentos ::= /* vacío */
+            {:
+                RESULT = new ArrayList<>();
+            :}
+            | lista_argumentos:args
+            {:
+                RESULT = args;
+            :}
+            ;
+
+lista_argumentos ::= expresion:expr
+                  {:
+                      List<Expression> args = new ArrayList<>();
+                      args.add(expr);
+                      RESULT = args;
+                  :}
+                  | lista_argumentos:args COMMA expresion:expr
+                  {:
+                      args.add(expr);
+                      RESULT = args;
+                  :}
+                  ;
+
+expresion ::= expresion_asignacion:expr {: RESULT = expr; :};
+
+
+expresion_asignacion ::= ID:id ASSIGN expresion:expr
+                      {:
+                          RESULT = new AssignmentExpression(id, expr);
+                      :}
+                      | expresion_logica:expr {: RESULT = expr; :}
+                      ;
+
+// Modifica la regla de expresión para evitar que se cree recursividad a la izquierda
+
+
+/* Reescribir expresión lógica para evitar recursividad a la izquierda */
+expresion_logica ::= expresion_relacional:expr {: RESULT = expr; :}
+                  | expresion_relacional:left AND expresion_logica:right
+                  {:
+                      RESULT = new BinaryExpression(left, "AND", right);
+                  :}
+                  | expresion_relacional:left OR expresion_logica:right
+                  {:
+                      RESULT = new BinaryExpression(left, "OR", right);
+                  :}
+                  | NOT expresion_relacional:expr
+                  {:
+                      RESULT = new UnaryExpression("NOT", expr);
+                  :}
+                  ;
+
+/* Reescribir expresión relacional */
+expresion_relacional ::= expresion_aditiva:expr {: RESULT = expr; :}
+                      | expresion_aditiva:left LT expresion_aditiva:right
+                      {:
+                          RESULT = new BinaryExpression(left, "<", right);
+                      :}
+                      | expresion_aditiva:left GT expresion_aditiva:right
+                      {:
+                          RESULT = new BinaryExpression(left, ">", right);
+                      :}
+                      | expresion_aditiva:left LE expresion_aditiva:right
+                      {:
+                          RESULT = new BinaryExpression(left, "<=", right);
+                      :}
+                      | expresion_aditiva:left GE expresion_aditiva:right
+                      {:
+                          RESULT = new BinaryExpression(left, ">=", right);
+                      :}
+                      | expresion_aditiva:left EQ expresion_aditiva:right
+                      {:
+                          RESULT = new BinaryExpression(left, "==", right);
+                      :}
+                      | expresion_aditiva:left NE expresion_aditiva:right
+                      {:
+                          RESULT = new BinaryExpression(left, "!=", right);
+                      :}
+                      ;
+expresion_aditiva ::= expresion_aditiva:left PLUS expresion_multiplicativa:right
+                   {:
+                       RESULT = new BinaryExpression(left, "+", right);
+                   :}
+                   | expresion_aditiva:left MINUS expresion_multiplicativa:right
+                   {:
+                       RESULT = new BinaryExpression(left, "-", right);
+                   :}
+                   | expresion_multiplicativa:expr {: RESULT = expr; :}
+                   ;
+
+expresion_multiplicativa ::= expresion_multiplicativa:left TIMES factor:right
+                         {:
+                             RESULT = new BinaryExpression(left, "*", right);
+                         :}
+                         | expresion_multiplicativa:left DIVIDE factor:right
+                         {:
+                             RESULT = new BinaryExpression(left, "/", right);
+                         :}
+                         | factor:f {: RESULT = f; :}
+                         ;
+
+/* Separamos claramente los factores */
+factor ::= LPAREN expresion:expr RPAREN {: RESULT = expr; :}
+        | llamada_funcion:call {: RESULT = call; :}
+        | ID:id {: RESULT = new VariableExpression(id); :}
+        | INT:val {: RESULT = new LiteralExpression(val); :}
+        | FLOAT:val {: RESULT = new LiteralExpression(val); :}
+        | STRING:val {: RESULT = new LiteralExpression(val); :}
+        | TRUE:val {: RESULT = new LiteralExpression(val); :}
+        | FALSE:val {: RESULT = new LiteralExpression(val); :}
+        | MINUS factor:factor
+        {:
+            RESULT = new UnaryExpression("-", factor);
+        :} %prec UMINUS
+        ;
