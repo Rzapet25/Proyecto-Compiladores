@@ -91,7 +91,23 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>2.7.5</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <mainClass>org.example.CompiladorWebApp</mainClass>
+                </configuration>
+            </plugin>
         </plugins>
+        <finalName>compiladores-app</finalName>
     </build>
 
 </project>
