@@ -84,6 +84,7 @@
                         </goals>
                         <configuration>
                             <sources>
+                                <source>${project.build.directory}/generated-sources/jflex</source>
                                 <source>${project.build.directory}/generated-sources/cup</source>
                             </sources>
                         </configuration>
