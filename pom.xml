@@ -65,7 +65,7 @@
                 </executions>
                 <configuration>
                     <className>Parser</className>
-                    <symbolsName>Symbols</symbolsName>
+                    <symbolsName>sym</symbolsName>  <!-- Cambiar de Symbols a sym -->
                     <packageName>org.example.parser</packageName>
                     <cupDefinition>src/main/cup/Parser.cup</cupDefinition>
                     <outputDirectory>${project.build.directory}/generated-sources/cup</outputDirectory>

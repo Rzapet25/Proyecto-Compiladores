@@ -6,6 +6,9 @@ import org.example.ast.Program;
 import org.example.tac.TACGenerator;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.example.lexer.Lexer;
+import org.example.parser.Parser;
+import org.example.parser.sym;
 
 public class SimpleScriptCompilerTest {
 

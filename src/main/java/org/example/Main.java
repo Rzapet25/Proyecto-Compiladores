@@ -3,6 +3,9 @@ package org.example;
 import java_cup.runtime.Symbol;
 import org.example.ast.Program;
 import org.example.tac.TACGenerator;
+import org.example.lexer.Lexer;
+import org.example.parser.Parser;
+import org.example.parser.sym;
 
 import java.io.FileReader;
 import java.io.FileWriter;
