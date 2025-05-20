@@ -1,7 +1,5 @@
 package org.example.ast;
 
-import org.example.tac.TACGenerator;
-
 public class VariableExpression extends Expression {
     private String name;
 
@@ -9,8 +7,5 @@ public class VariableExpression extends Expression {
         this.name = name;
     }
 
-    @Override
-    public String generateTAC(TACGenerator generator) {
-        return name;
-    }
+    // Eliminar el método generateTAC
 }

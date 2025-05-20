@@ -1,27 +1,19 @@
 package org.example.ast;
 
-import org.example.tac.TACGenerator;
-
 public class VarDeclaration extends Statement {
-    private String id;
-    private Expression value;
+    private String name;
+    private Expression initialValue;
 
-    public VarDeclaration(String id, Expression value) {
-        this.id = id;
-        this.value = value;
+    public VarDeclaration(String name, Expression initialValue) {
+        this.name = name;
+        this.initialValue = initialValue;
     }
 
-    public String getId() {
-        return id;
+    public String getName() {
+        return name;
     }
 
-    public Expression getValue() {
-        return value;
-    }
-
-    @Override
-    public String generateTAC(TACGenerator generator) {
-        String valueTemp = value.generateTAC(generator);
-        return id + " = " + valueTemp + "\n";
+    public Expression getInitialValue() {
+        return initialValue;
     }
 }

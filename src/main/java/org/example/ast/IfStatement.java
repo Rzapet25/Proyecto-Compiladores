@@ -1,7 +1,6 @@
 package org.example.ast;
 
-import org.example.tac.TACGenerator;
-
+import org.example.symbol.SymbolTable;
 import java.util.List;
 
 public class IfStatement extends Statement {
@@ -18,71 +17,49 @@ public class IfStatement extends Statement {
         this.elseBody = elseBody;
     }
 
-    @Override
-    public String generateTAC(TACGenerator generator) {
-        StringBuilder code = new StringBuilder();
+    // Método para manejar la ejecución y los ámbitos
+    public void execute(SymbolTable symbolTable) {
+        // Evaluar la condición
+        boolean conditionMet = evaluateCondition(condition);
 
-        String condTemp = condition.generateTAC(generator);
-        String thenLabel = generator.generateLabel();
-        String elseIfLabel = generator.generateLabel();
-        String elseLabel = generator.generateLabel();
-        String endLabel = generator.generateLabel();
-
-        // If condition
-        code.append("if ").append(condTemp).append(" goto ").append(thenLabel).append("\n");
-
-        // Jump to else-if or else
-        if (!elseIfClauses.isEmpty()) {
-            code.append("goto ").append(elseIfLabel).append("\n");
-        } else if (!elseBody.isEmpty()) {
-            code.append("goto ").append(elseLabel).append("\n");
+        if (conditionMet) {
+            symbolTable.enterScope();  // Crear ámbito para el bloque then
+            executeStatements(thenBody, symbolTable);
+            symbolTable.exitScope();   // Cerrar ámbito del bloque then
         } else {
-            code.append("goto ").append(endLabel).append("\n");
-        }
+            // Verificar cláusulas elseif
+            boolean elseIfConditionMet = false;
 
-        // Then body
-        code.append("label ").append(thenLabel).append("\n");
-        for (Statement stmt : thenBody) {
-            code.append(stmt.generateTAC(generator));
-        }
-        code.append("goto ").append(endLabel).append("\n");
-
-        // Else-if clauses
-        if (!elseIfClauses.isEmpty()) {
-            String currentLabel = elseIfLabel;
-
-            for (int i = 0; i < elseIfClauses.size(); i++) {
-                ElseIfClause clause = elseIfClauses.get(i);
-                String clauseLabel = generator.generateLabel();
-                String nextLabel = (i == elseIfClauses.size() - 1) ?
-                        (elseBody.isEmpty() ? endLabel : elseLabel) : generator.generateLabel();
-
-                code.append("label ").append(currentLabel).append("\n");
-                String elseIfCondTemp = clause.getCondition().generateTAC(generator);
-                code.append("if ").append(elseIfCondTemp).append(" goto ").append(clauseLabel).append("\n");
-                code.append("goto ").append(nextLabel).append("\n");
-
-                code.append("label ").append(clauseLabel).append("\n");
-                for (Statement stmt : clause.getBody()) {
-                    code.append(stmt.generateTAC(generator));
+            for (ElseIfClause elseIfClause : elseIfClauses) {
+                if (evaluateCondition(elseIfClause.getCondition())) {
+                    symbolTable.enterScope();  // Crear ámbito para el elseif
+                    executeStatements(elseIfClause.getBody(), symbolTable);
+                    symbolTable.exitScope();   // Cerrar ámbito del elseif
+                    elseIfConditionMet = true;
+                    break;
                 }
-                code.append("goto ").append(endLabel).append("\n");
+            }
 
-                currentLabel = nextLabel;
+            // Si hay else y ninguna condición se cumplió
+            if (!conditionMet && !elseIfConditionMet && !elseBody.isEmpty()) {
+                symbolTable.enterScope();  // Crear ámbito para el else
+                executeStatements(elseBody, symbolTable);
+                symbolTable.exitScope();   // Cerrar ámbito del else
             }
         }
+    }
 
-        // Else body
-        if (!elseBody.isEmpty()) {
-            code.append("label ").append(elseLabel).append("\n");
-            for (Statement stmt : elseBody) {
-                code.append(stmt.generateTAC(generator));
-            }
+    // Métodos auxiliares
+    private boolean evaluateCondition(Expression condition) {
+        // Aquí implementarías la evaluación de la condición
+        // Por ahora devuelve true para simplificar
+        return true;
+    }
+
+    private void executeStatements(List<Statement> statements, SymbolTable symbolTable) {
+        for (Statement stmt : statements) {
+            // Aquí ejecutarías cada declaración
+            // Por ejemplo, si stmt es un IfStatement, llamarías a su método execute
         }
-
-        // End of if statement
-        code.append("label ").append(endLabel).append("\n");
-
-        return code.toString();
     }
 }

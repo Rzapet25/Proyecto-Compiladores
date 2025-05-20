@@ -3,17 +3,43 @@ package org.example.parser;
 import java_cup.runtime.*;
 import java.util.*;
 import org.example.ast.*;
-import org.example.tac.*;
+import org.example.error.ErrorCompilacion;
+import java.util.ArrayList;
+import java.util.List;
+import org.example.lexer.*;
+import org.example.symbol.*;
 
 parser code {:
+    // Lista para almacenar errores
+    public List<ErrorCompilacion> errores = new ArrayList<>();
+
+    // Tabla de símbolos
+    public SymbolTable symbolTable = new SymbolTable();
+
     // Para registrar errores sintácticos
-    public void syntax_error(Symbol s) {
-        System.err.println("Error sintáctico en línea " + (s.left + 1) + ", columna " + (s.right + 1) + ": " + s.value);
+    public void syntax_error(java_cup.runtime.Symbol s) {
+        String tokenValue = s.value != null ? s.value.toString() : "fin de entrada";
+        errores.add(new ErrorCompilacion("Sintáctico", s.left, s.right,
+                "Token inesperado: " + tokenValue));
     }
 
     // Para errores fatales
-    public void unrecovered_syntax_error(Symbol s) throws java.lang.Exception {
-        System.err.println("Error irrecuperable en línea " + (s.left + 1) + ", columna " + (s.right + 1));
+    public void unrecovered_syntax_error(java_cup.runtime.Symbol s) throws java.lang.Exception {
+        String tokenValue = s.value != null ? s.value.toString() : "fin de entrada";
+        errores.add(new ErrorCompilacion("Sintáctico fatal", s.left, s.right,
+                "Error irrecuperable en la sintaxis cerca de: " + tokenValue));
+    }
+
+    // Método auxiliar para determinar el tipo de una expresión
+    private SymbolType determinarTipo(Expression expr) {
+        if (expr instanceof LiteralExpression) {
+            Object valor = ((LiteralExpression) expr).getValue();
+            if (valor instanceof Integer) return SymbolType.INTEGER;
+            if (valor instanceof Float) return SymbolType.FLOAT;
+            if (valor instanceof String) return SymbolType.STRING;
+            if (valor instanceof Boolean) return SymbolType.BOOLEAN;
+        }
+        return SymbolType.UNKNOWN;
     }
 :}
 
@@ -29,6 +55,7 @@ terminal Integer INT;
 terminal Float FLOAT;
 terminal String STRING;
 terminal Boolean TRUE, FALSE;
+
 
 /* Terminales virtuales (solo para precedencia) */
 terminal UMINUS;
@@ -98,12 +125,28 @@ declaracion ::= declaracion_variable:var {: RESULT = var; :}
 /* Declaraciones de variables y funciones */
 declaracion_variable ::= DEFINE ID:id ASSIGN expresion:expr SEMICOLON
                       {:
+                          // Añadir a la tabla de símbolos
+                          SymbolType tipo = determinarTipo(expr); // Método que implementarás
+                          parser.symbolTable.define(id, tipo, false, idleft, idright);
                           RESULT = new VarDeclaration(id, expr);
                       :}
                       ;
 
-declaracion_funcion ::= FUNCTION ID:id LPAREN parametros:params RPAREN cuerpo_funcion:body END
+declaracion_funcion ::= FUNCTION ID:id LPAREN parametros:params RPAREN
                       {:
+                          // Definir la función en el ámbito actual
+                          parser.symbolTable.define(id, SymbolType.VOID, true, idleft, idright);
+                          // Crear nuevo ámbito para parámetros y cuerpo
+                          parser.symbolTable.enterScope();
+                          // Agregar parámetros al ámbito actual
+                          for (String param : params) {
+                              parser.symbolTable.define(param, SymbolType.UNKNOWN, false, idleft, idright);
+                          }
+                      :}
+                      cuerpo_funcion:body END
+                      {:
+                          // Salir del ámbito de la función
+                          parser.symbolTable.exitScope();
                           RESULT = new FunctionDeclaration(id, params, body);
                       :}
                       ;
@@ -181,6 +224,7 @@ estructura_control ::= estructura_if:ifStmt {: RESULT = ifStmt; :}
 
 estructura_if ::= IF expresion:cond THEN declaraciones:thenBody END
                 {:
+                    // Manejar los ámbitos en la ejecución en lugar de en el parsing
                     RESULT = new IfStatement(cond, thenBody, new ArrayList<>(), new ArrayList<>());
                 :}
                 | IF expresion:cond THEN declaraciones:thenBody ELSE declaraciones:elseBody END
@@ -224,6 +268,12 @@ estructura_loop ::= LOOP LPAREN declaracion_variable:init expresion:cond SEMICOL
 
 llamada_funcion ::= ID:id LPAREN argumentos:args RPAREN
                   {:
+                      // Verificar si la función está definida
+                      org.example.symbol.Symbol sym = parser.symbolTable.resolve(id, idleft, idright);
+                      if (sym != null && !sym.isFunction()) {
+                          parser.errores.add(new ErrorCompilacion("Semántico", idleft, idright,
+                              "'" + id + "' no es una función"));
+                      }
                       RESULT = new FunctionCall(id, args);
                   :}
                   ;
@@ -256,6 +306,8 @@ expresion ::= expresion_asignacion:expr {: RESULT = expr; :};
 
 expresion_asignacion ::= ID:id ASSIGN expresion:expr
                       {:
+                          // Verificar si la variable existe
+                          org.example.symbol.Symbol sym = parser.symbolTable.resolve(id, idleft, idright);
                           RESULT = new AssignmentExpression(id, expr);
                       :}
                       | expresion_logica:expr {: RESULT = expr; :}
@@ -264,17 +316,17 @@ expresion_asignacion ::= ID:id ASSIGN expresion:expr
 // Modifica la regla de expresión para evitar que se cree recursividad a la izquierda
 
 
-/* Reescribir expresión lógica para evitar recursividad a la izquierda */
+/* Modificación en la expresión lógica para evitar ambigüedades */
 expresion_logica ::= expresion_relacional:expr {: RESULT = expr; :}
-                  | expresion_relacional:left AND expresion_logica:right
+                  | expresion_logica:left AND expresion_relacional:right
                   {:
                       RESULT = new BinaryExpression(left, "AND", right);
                   :}
-                  | expresion_relacional:left OR expresion_logica:right
+                  | expresion_logica:left OR expresion_relacional:right
                   {:
                       RESULT = new BinaryExpression(left, "OR", right);
                   :}
-                  | NOT expresion_relacional:expr
+                  | NOT expresion_logica:expr
                   {:
                       RESULT = new UnaryExpression("NOT", expr);
                   :}
@@ -332,7 +384,17 @@ expresion_multiplicativa ::= expresion_multiplicativa:left TIMES factor:right
 /* Separamos claramente los factores */
 factor ::= LPAREN expresion:expr RPAREN {: RESULT = expr; :}
         | llamada_funcion:call {: RESULT = call; :}
-        | ID:id {: RESULT = new VariableExpression(id); :}
+        | ID:id
+        {:
+            // Verificar si la variable está definida
+            org.example.symbol.Symbol sym = parser.symbolTable.resolve(id, idleft, idright);
+            if (sym == null) {
+                // La tabla de símbolos ya habrá registrado el error
+                RESULT = new ErrorExpression("Variable no definida: " + id);
+            } else {
+                RESULT = new VariableExpression(id);
+            }
+        :}
         | INT:val {: RESULT = new LiteralExpression(val); :}
         | FLOAT:val {: RESULT = new LiteralExpression(val); :}
         | STRING:val {: RESULT = new LiteralExpression(val); :}

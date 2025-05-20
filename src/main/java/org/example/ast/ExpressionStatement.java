@@ -1,7 +1,5 @@
 package org.example.ast;
 
-import org.example.tac.TACGenerator;
-
 public class ExpressionStatement extends Statement {
     private Expression expression;
 
@@ -9,8 +7,5 @@ public class ExpressionStatement extends Statement {
         this.expression = expression;
     }
 
-    @Override
-    public String generateTAC(TACGenerator generator) {
-        return expression.generateTAC(generator);
-    }
+    // Eliminar el método generateTAC
 }

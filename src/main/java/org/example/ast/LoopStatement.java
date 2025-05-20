@@ -1,7 +1,6 @@
 package org.example.ast;
 
-import org.example.tac.TACGenerator;
-
+import org.example.symbol.SymbolTable;
 import java.util.List;
 
 public class LoopStatement extends Statement {
@@ -18,40 +17,21 @@ public class LoopStatement extends Statement {
         this.body = body;
     }
 
-    @Override
-    public String generateTAC(TACGenerator generator) {
-        StringBuilder code = new StringBuilder();
+    // Método para manejar la ejecución y los ámbitos
+    public void execute(SymbolTable symbolTable) {
+        symbolTable.enterScope();  // Crear ámbito para el loop
 
-        // Initialization
-        code.append(initialization.generateTAC(generator));
+        // Ejecutar la inicialización
+        // initialization.execute(symbolTable);
 
-        String startLabel = generator.generateLabel();
-        String bodyLabel = generator.generateLabel();
-        String endLabel = generator.generateLabel();
+        // En un compilador real, aquí implementarías la lógica del bucle
+        // Para análisis semántico solo necesitamos verificar los tipos
 
-        // Start of loop
-        code.append("label ").append(startLabel).append("\n");
-
-        // Condition
-        String condTemp = condition.generateTAC(generator);
-        code.append("if ").append(condTemp).append(" goto ").append(bodyLabel).append("\n");
-        code.append("goto ").append(endLabel).append("\n");
-
-        // Body
-        code.append("label ").append(bodyLabel).append("\n");
+        // Ejecutar el cuerpo (para análisis semántico)
         for (Statement stmt : body) {
-            code.append(stmt.generateTAC(generator));
+            // Ejecutar cada declaración
         }
 
-        // Increment
-        String incrTemp = increment.generateTAC(generator);
-
-        // Go back to condition
-        code.append("goto ").append(startLabel).append("\n");
-
-        // End
-        code.append("label ").append(endLabel).append("\n");
-
-        return code.toString();
+        symbolTable.exitScope();  // Cerrar ámbito
     }
 }

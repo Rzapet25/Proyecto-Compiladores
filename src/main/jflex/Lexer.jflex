@@ -1,32 +1,47 @@
 package org.example.lexer;
 
 import java_cup.runtime.*;
+import java_cup.runtime.Symbol;
 import org.example.parser.sym;
+import org.example.parser.Parser;
+import org.example.error.ErrorCompilacion;
 
 %%
 %public
 %class Lexer
 %unicode
 %cup
+%cupsym org.example.parser.sym
 %line
 %column
 
 %{
+    private Parser parser;
+
+    // Constructor único que acepta un parser opcional
+    public Lexer(java.io.Reader in, Parser parser) {
+        this.zzReader = in;
+        this.parser = parser;
+    }
+
+    // Método de fábrica para crear un lexer sin parser
+    public static Lexer createWithoutParser(java.io.Reader in) {
+        return new Lexer(in, null);
+    }
+
     private Symbol symbol(int type) {
         return new Symbol(type, yyline, yycolumn);
     }
-    
+
     private Symbol symbol(int type, Object value) {
         return new Symbol(type, yyline, yycolumn, value);
     }
 %}
-
-// Espacios en blanco y comentarios (a ignorar)
+// Definiciones
 LineTerminator = \r|\n|\r\n
 WhiteSpace     = {LineTerminator} | [ \t\f]
 Comment        = "//" [^\r\n]* {LineTerminator}?
 
-// Identificadores y literales
 Identifier = [a-zA-Z_][a-zA-Z0-9_]*
 Integer    = [0-9]+
 Float      = [0-9]+ "." [0-9]+
@@ -83,4 +98,11 @@ String     = \" [^\"]* \"
 {Comment}      { /* ignorar */ }
 
 /* Error */
-[^]            { throw new Error("Caracter ilegal <" + yytext() + "> en línea " + (yyline + 1) + ", columna " + (yycolumn + 1)); }
+[^]          {
+                Symbol errorSym = symbol(sym.error, yytext());
+                if (parser != null) {
+                    parser.errores.add(new ErrorCompilacion("Léxico", yyline, yycolumn,
+                            "Carácter ilegal: " + yytext()));
+                }
+                return errorSym;
+             }
