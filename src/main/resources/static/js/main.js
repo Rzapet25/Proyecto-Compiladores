@@ -92,6 +92,10 @@ document.getElementById('archivo').onclick = function(e) {
 
 // Manejador para el botón limpiar
 document.getElementById('limpiar-codigo').addEventListener('click', function() {
+    // Limpiar el área de código
     document.getElementById('codigo').value = '';
-    validarCampo(); // Para actualizar el estado del botón Compilar
+    // Limpiar el área de resultados
+    document.getElementById('resultado').textContent = 'El Resultado del análisis aparecerá aquí...';
+    // Actualizar el estado del botón Compilar
+    validarCampo();
 });

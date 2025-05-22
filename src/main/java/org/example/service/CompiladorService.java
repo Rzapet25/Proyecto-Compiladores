@@ -32,7 +32,7 @@ public class CompiladorService {
 
             if (errores.isEmpty()) {
                 StringBuilder sb = new StringBuilder();
-                sb.append("Compilación exitosa. No se encontraron errores.\n\n");
+                sb.append("Análisis exitoso. No se encontraron errores.\n\n");
 
                 // Mostrar tabla de símbolos
                 sb.append("Tabla de símbolos:\n");
